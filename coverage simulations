@@ -1,0 +1,119 @@
+def is_connected(X,h):
+    if len(X) <= 1:
+        return True
+    return all(X[i+1] - X[i] <= h for i in range(len(X)-1))
+
+
+def union_length(X,h):
+    total = 0.0
+    current_start = None
+    current_end = None
+
+    for x in X:
+        start = max(x-h/2, 0)
+        end = min(x+h/2,1)
+
+        if end <= 0 or start >= 1:
+            continue
+
+        if current_start is None:
+            current_start , current_end = start, end
+        elif start <= current_end:
+            current_end= max(current_end, end)
+        else:
+            total += current_end - current_start
+            current_start, current_end = start, end
+    
+    if current_start is not None:
+        total += current_end - current_start
+    
+    return total
+
+
+import numpy as np
+
+def union_length_distribution(n, h, reps):
+    samples = np.sort(np.random.uniform(0, 1, size=(reps, n)), axis=1)
+    results = np.array([union_length(sample, h) for sample in samples])
+    filename = f"union_length_distribution_n{n}_h{h}_reps{reps}.npy"
+    np.save(filename, results)
+
+
+import matplotlib.pyplot as plt
+
+def plot_length_density(n, h, reps, plot_type='hist'):
+    filename = f"union_length_distribution_n{n}_h{h}_reps{reps}.npy"
+    results = np.load(filename)
+
+    plt.figure(figsize=(8,5))
+    plt.hist(results, bins=30, density=True, color='skyblue', edgecolor='black', alpha=0.7)
+
+    plt.title(f"Distribution of Union Lengths (n={n}, h={h}, reps={reps})")
+    plt.xlabel("Union Length")
+    plt.ylabel("Density")
+    plt.grid(False)
+    plt.show()
+
+union_length_distribution(n=100, h=0.01, reps=10000)
+plot_length_density(n=100, h=0.01, reps=10000)
+
+
+def is_covered(samples, h):
+    if samples.size == 0 or samples.shape[1] == 0:
+        return np.array([False] * samples.shape[0]) if samples.ndim == 2 else np.array([False])
+    starts = np.maximum(0, samples - h/2)
+    ends = np.minimum(1, samples + h/2)
+
+    gaps = starts[:, 1:] > ends[:, :-1]
+    has_gap = np.any(gaps, axis=1)
+
+    return (~has_gap) & (starts[:, 0] <= 0) & (ends[:, -1] >= 1)
+
+def covering_prob(n, h, reps, seed=None):
+    if seed is not None:
+        np.random.seed(seed)
+    
+    samples = np.random.uniform(0, 1, size=(reps, n))
+    samples.sort(axis=1)
+
+    covered_mask = is_covered(samples, h)
+    return np.mean(covered_mask)
+
+prob = covering_prob(n=50, h=0.1, reps=100, seed=50)
+print(f"Estimated covering probability: {prob:.5f}")
+
+
+def plot_covering_prob(n_range, h, reps, seed= None, return_probs = False):
+    if seed is not None:
+        np.random.seed(seed)
+
+    probabilities = []
+    for n in n_range:
+        samples = np.random.uniform(0, 1, size=(reps, n))
+        samples.sort(axis=1)
+        covered = is_covered(samples, h)
+        probabilities.append(np.mean(covered))
+
+    if not return_probs:
+        plt.figure(figsize=(10,6))
+        plt.plot(n_range, probabilities, marker='o', color='purple')
+        plt.title(f"Covering Probability vs n (h={h}, reps={reps})")
+        plt.xlabel("n")
+        plt.ylabel("Covering Probability")
+        plt.grid(True)
+        plt.ylim(0, 1.05)
+        plt.show()
+
+    return probabilities
+
+
+import time
+n_range = range(5, 120, 5)
+h = 0.1
+reps = 100000
+
+start_time = time.time()
+plot_covering_prob(n_range, h, reps)
+end_time = time.time()
+
+print(f"Total execution time: {end_time - start_time:.2f} seconds")

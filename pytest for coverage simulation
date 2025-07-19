@@ -1,0 +1,188 @@
+import pytest
+from solfinal import is_connected
+
+def test_empty_list():
+    assert is_connected([],1) == True
+
+def test_single_element():
+    assert is_connected([5],0) == True
+
+def test_two_elements_exact_h():
+    assert is_connected([1,3],2) == True
+
+def test_two_elements_more_h():
+    assert is_connected([1,4], 2) == False
+
+def test_identical_elements():
+    assert is_connected([2,2,2],0) == True
+
+def test_h_is_zero():
+    assert is_connected([1,2], 0) == False
+
+
+from solfinal import union_length
+from pytest import approx 
+
+def test_empty_list_2():
+    assert union_length([],0.5) == 0
+
+def test_single_element_2():
+    assert union_length([0.5], 0.2) == approx(0.2)
+
+def test_not_overlapping_intervals():
+    assert union_length([0, 1], 0.5) == approx(0.5)
+
+def test_h_is_zero_2():
+    assert union_length([0.3, 0.6], 0)  == approx(0)
+
+def test_h_is_large():
+    assert union_length([0.1,0.9],2) == approx(1)
+
+def test_partial_overlaps():
+    X = [0.1, 0.15, 0.3, 0.8]
+    h = 0.1
+    expected_length = (0.2 - 0.05) + (0.35 - 0.25) + (0.85 - 0.75)
+    assert union_length(X, h) == approx(expected_length)
+
+def test_many_close_points():
+    X = [i * 0.01 for i in range(50)]
+    h = 0.02
+    expected_length = 0.5
+    assert union_length(X, h) == approx(expected_length)
+
+def test_large_h_covers_all():
+    X = [-0.5, 0.5, 1.5]
+    h = 0.4
+    assert union_length(X, h) == approx(0.4)
+
+
+import os
+import numpy as np
+from solfinal import union_length_distribution
+
+def test_file_creation():
+    n, h, reps = 100, 0.1, 10
+    union_length_distribution(n, h, reps)
+    filename = f"union_length_distribution_n{n}_h{h}_reps{reps}.npy"
+    assert os.path.isfile(filename)
+    os.remove(filename)
+
+def test_array_length():
+    n, h, reps = 50, 0.05, 20
+    union_length_distribution(n, h, reps)
+    filename = f"union_length_distribution_n{n}_h{h}_reps{reps}.npy"
+    data = np.load(filename)
+    assert len(data) == reps
+    os.remove(filename)
+
+def test_values_range():
+    n, h, reps = 50, 0.05, 20
+    union_length_distribution(n, h, reps)
+    filename = f"union_length_distribution_n{n}_h{h}_reps{reps}.npy"
+    data = np.load(filename)
+    assert np.all(data >= 0) and np.all(data <= 1)
+    os.remove(filename)
+
+
+from solfinal import plot_length_density
+n, h, reps = 50, 0.1, 10
+filename = f"union_length_distribution_n{n}_h{h}_reps{reps}.npy"
+
+def test_file_exists():
+    union_length_distribution(n, h, reps)
+    assert os.path.exists(filename)
+    os.remove(filename)
+
+def test_file_loaded_fully():
+    union_length_distribution(n,h,reps)
+    data = np.load(filename)
+    assert isinstance(data, np.ndarray)
+    assert len(data) == reps
+    os.remove(filename)
+
+def test_plot_runs_without_errors():
+    union_length_distribution(n, h, reps)
+    try:
+        plot_length_density(n, h, reps)
+    except Exception as e:
+        pytest.fail(f"plot_length_density raised an exception: {e}")
+    os.remove(filename)
+
+
+from solfinal import is_covered, covering_prob
+
+def test_covering_prob_range():
+    p = covering_prob(n=100,h=0.05,reps=100)
+    assert 0 <= p <= 1
+
+def test_is_deterministic():
+    p1 = covering_prob(n=100, h=0.15, reps=100, seed=50)
+    p2 = covering_prob(n=100, h=0.15, reps=100, seed=50)
+    assert np.isclose(p1,p2)
+
+def test_edge_cases():
+    p1 = covering_prob(n=1,h=2,reps=10)
+    assert p1 == 1
+
+    p2 = covering_prob(n=0, h=0.1, reps=10)
+    assert p2 == 0
+
+
+from solfinal import plot_covering_prob
+def test_probabilities_in_range():
+    n_range = range(5, 20)
+    h = 0.3
+    reps = 1000
+    probs = plot_covering_prob(n_range, h, reps, return_probs=True)
+    assert all(0 <= p <= 1 for p in probs)
+
+def test_output_length():
+    n_range = range(10, 50, 10)
+    h = 0.2
+    reps = 300
+    probs = plot_covering_prob(n_range, h, reps, return_probs=True)
+    assert len(probs) == len(n_range)
+
+def test_deterministic_with_seed():
+    n_range = range(5, 15, 5)
+    h = 0.3
+    reps = 1000
+    seed = 50
+    probs1 = plot_covering_prob(n_range, h, reps, seed=seed,return_probs=True)
+    probs2 = plot_covering_prob(n_range, h, reps, seed=seed,return_probs=True)
+    assert np.allclose(probs1, probs2)
+
+
+from solfinal import mean_cover_time
+
+def test_large_h_single_point():
+    assert mean_cover_time(1.5, reps=100, seed=50) == 1.0
+
+def test_small_h_no_infinite_loop():
+    result = mean_cover_time(0.01, reps=5, seed=50)
+    assert result > 10
+
+def test_one_rep():
+    assert mean_cover_time(0.1, reps=1, seed=50) >= 1
+
+def test_deterministic_with_seed():
+    val1 = mean_cover_time(0.1, reps=50, seed=50)
+    val2 = mean_cover_time(0.1, reps=50, seed=50)
+    assert val1 == approx(val2)
+
+
+from solfinal import mean_cover_time2
+def test_result_is_not_nan():
+    result = mean_cover_time2(h=0.1, reps=100, seed=50)
+    assert result > 0 and not np.isnan(result)
+
+def test_deterministic_with_seed2():
+    val1 = mean_cover_time2(h=0.1, reps=500, seed=50)
+    val2 = mean_cover_time2(h=0.1, reps=500, seed=50)
+    assert val1 == approx(val2)
+
+def test_increasing_reps_stabilizes_result():
+    val_small = mean_cover_time2(h=0.1, reps=100, seed=42)
+    val_large = mean_cover_time2(h=0.1, reps=500, seed=42)
+    assert abs(val_large - val_small) < 1.0
+
